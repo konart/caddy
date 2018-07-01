@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	"encoding/json"
+	"fmt"
 	"github.com/mholt/caddy"
 	"github.com/mholt/caddy/caddytls"
 )
@@ -50,6 +52,7 @@ var now = time.Now
 // the key is already used.
 type Replacer interface {
 	Replace(string) string
+	ToJson() string
 	Set(key, value string)
 }
 
@@ -69,6 +72,12 @@ type replacer struct {
 type limitWriter struct {
 	w      bytes.Buffer
 	remain int
+}
+
+// FakeRequest implements Marshaller
+// for the http.Request
+type FakeRequest struct {
+	*http.Request
 }
 
 func newLimitWriter(max int) *limitWriter {
@@ -211,6 +220,35 @@ Placeholders: // process each placeholder in sequence
 
 	// append unscanned parts
 	return result + unescapeBraces(s)
+}
+
+func (t *FakeRequest) MarshalJSON() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(t.Request.Body)
+	body := buf.String()
+
+	return json.Marshal(&struct {
+		*http.Request
+		GetBody  string `json:",omitempty"`
+		Body     string
+		Cancel   string `json:",omitempty"`
+		Response string
+	}{
+		Request:  t.Request,
+		GetBody:  "",
+		Body:     body,
+		Cancel:   "",
+		Response: "",
+	})
+}
+
+func (r *replacer) ToJson() string {
+	ms := &FakeRequest{r.request}
+	str, err := json.Marshal(ms)
+	if err != nil {
+		return fmt.Sprintf("Error while trying to marshall the request: %v\nError: %s\n", r.request, err)
+	}
+	return string(str)
 }
 
 func roundDuration(d time.Duration) time.Duration {

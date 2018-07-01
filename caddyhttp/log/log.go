@@ -81,7 +81,8 @@ func (l Logger) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 						rep.Set("remote", maskedIP)
 					}
 				}
-				e.Log.Println(rep.Replace(e.Format))
+				//e.Log.Println(rep.Replace(e.Format))
+				e.Log.Println(rep.ToJson())
 
 			}
 
