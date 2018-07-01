@@ -28,8 +28,10 @@ import (
 	"strings"
 	"time"
 
+	"encoding/json"
 	"github.com/mholt/caddy"
 	"github.com/mholt/caddy/caddytls"
+	"log"
 )
 
 // requestReplacer is a strings.Replacer which is used to
@@ -50,6 +52,7 @@ var now = time.Now
 // the key is already used.
 type Replacer interface {
 	Replace(string) string
+	ToJson() string
 	Set(key, value string)
 }
 
@@ -93,6 +96,25 @@ func (lw *limitWriter) Write(p []byte) (int, error) {
 
 func (lw *limitWriter) String() string {
 	return lw.w.String()
+}
+
+// RequestWrapper is a type of json.Marshaller that
+// dumps data provided by http.Request for further json output.
+type RequestWrapper struct {
+	*http.Request
+}
+
+func (r *ResponseRecorder) MarshalJSON() ([]byte, error) {
+	l := roundDuration(time.Since(r.start)).String()
+	return json.Marshal(&struct {
+		Status int
+		Size   int
+		Latency string
+	}{
+		Status: r.status,
+		Size:   r.size,
+		Latency: l,
+	})
 }
 
 // NewReplacer makes a new replacer based on r and rr which
@@ -211,6 +233,45 @@ Placeholders: // process each placeholder in sequence
 
 	// append unscanned parts
 	return result + unescapeBraces(s)
+}
+
+func (t *RequestWrapper) MarshalJSON() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(t.Request.Body)
+	body := buf.String()
+
+	return json.Marshal(&struct {
+		*http.Request
+		GetBody  string `json:",omitempty"`
+		Body     string
+		Cancel   string `json:",omitempty"`
+		Response string `json:",omitempty"`
+	}{
+		Request:  t.Request,
+		GetBody:  "",
+		Body:     body,
+		Cancel:   "",
+		Response: "",
+	})
+}
+
+func (r *replacer) MarshalJSON() ([]byte, error) {
+	request := &RequestWrapper{r.request}
+	return json.Marshal(&struct {
+		Request  *RequestWrapper
+		Response *ResponseRecorder
+	}{
+		Request:  request,
+		Response: r.responseRecorder,
+	})
+}
+
+func (r *replacer) ToJson() string {
+	b, err := json.Marshal(r)
+	if err != nil {
+		log.Printf("[ERROR] Replacer marshaller: %s\n", err)
+	}
+	return string(b)
 }
 
 func roundDuration(d time.Duration) time.Duration {

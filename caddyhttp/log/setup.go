@@ -112,6 +112,7 @@ func logParse(c *caddy.Controller) ([]*Rule, error) {
 		path := "/"
 		format := DefaultLogFormat
 		output := DefaultLogFilename
+		logType := DefaultLogType
 
 		switch len(args) {
 		case 0:
@@ -119,16 +120,20 @@ func logParse(c *caddy.Controller) ([]*Rule, error) {
 		case 1:
 			// Only an output file specified
 			output = args[0]
-		case 2, 3:
-			// Path scope, output file, and maybe a format specified
+		case 2:
+			// output file and a type specified
+			logType = args[1]
+		case 3, 4:
+			// Path scope, output file, type and maybe a format specified
 			path = args[0]
 			output = args[1]
-			if len(args) > 2 {
+			logType = args[2]
+			if len(args) > 3 {
 				format = strings.Replace(args[2], "{common}", CommonLogFormat, -1)
 				format = strings.Replace(format, "{combined}", CombinedLogFormat, -1)
 			}
 		default:
-			// Maximum number of args in log directive is 3.
+			// Maximum number of args in log directive is 4.
 			return nil, c.ArgErr()
 		}
 
@@ -141,7 +146,8 @@ func logParse(c *caddy.Controller) ([]*Rule, error) {
 				IPMaskExists: ipMaskExists,
 				Exceptions:   logExceptions,
 			},
-			Format: format,
+			Format:  format,
+			LogType: logType,
 		})
 	}
 
