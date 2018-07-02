@@ -74,12 +74,6 @@ type limitWriter struct {
 	remain int
 }
 
-// FakeRequest implements Marshaller
-// for the http.Request
-type FakeRequest struct {
-	*http.Request
-}
-
 func newLimitWriter(max int) *limitWriter {
 	return &limitWriter{
 		w:      bytes.Buffer{},
@@ -102,6 +96,22 @@ func (lw *limitWriter) Write(p []byte) (int, error) {
 
 func (lw *limitWriter) String() string {
 	return lw.w.String()
+}
+
+// RequestWrapper is a type of json.Marshaller that
+// dumps data provided by http.Request for further json output.
+type RequestWrapper struct {
+	*http.Request
+}
+
+func (r *ResponseRecorder) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		Status int
+		Size   int
+	}{
+		Status: r.status,
+		Size:   r.size,
+	})
 }
 
 // NewReplacer makes a new replacer based on r and rr which
@@ -222,7 +232,7 @@ Placeholders: // process each placeholder in sequence
 	return result + unescapeBraces(s)
 }
 
-func (t *FakeRequest) MarshalJSON() ([]byte, error) {
+func (t *RequestWrapper) MarshalJSON() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(t.Request.Body)
 	body := buf.String()
@@ -232,7 +242,7 @@ func (t *FakeRequest) MarshalJSON() ([]byte, error) {
 		GetBody  string `json:",omitempty"`
 		Body     string
 		Cancel   string `json:",omitempty"`
-		Response string
+		Response string `json:",omitempty"`
 	}{
 		Request:  t.Request,
 		GetBody:  "",
@@ -242,9 +252,19 @@ func (t *FakeRequest) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (r *replacer) MarshalJSON() ([]byte, error) {
+	request := &RequestWrapper{r.request}
+	return json.Marshal(&struct {
+		Request  *RequestWrapper
+		Response *ResponseRecorder
+	}{
+		Request:  request,
+		Response: r.responseRecorder,
+	})
+}
+
 func (r *replacer) ToJson() string {
-	ms := &FakeRequest{r.request}
-	str, err := json.Marshal(ms)
+	str, err := json.Marshal(r)
 	if err != nil {
 		return fmt.Sprintf("Error while trying to marshall the request: %v\nError: %s\n", r.request, err)
 	}
