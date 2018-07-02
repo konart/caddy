@@ -81,8 +81,14 @@ func (l Logger) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 						rep.Set("remote", maskedIP)
 					}
 				}
-				//e.Log.Println(rep.Replace(e.Format))
-				e.Log.Println(rep.ToJson())
+				switch e.LogType {
+				case "json":
+					e.Log.Println(rep.ToJson())
+				case DefaultLogType:
+					e.Log.Println(rep.Replace(e.Format))
+				default:
+					e.Log.Println(rep.Replace(e.Format))
+				}
 
 			}
 
@@ -95,6 +101,7 @@ func (l Logger) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 // Entry represents a log entry under a path scope
 type Entry struct {
 	Format string
+	LogType string
 	Log    *httpserver.Logger
 }
 
@@ -115,4 +122,6 @@ const (
 	CombinedLogFormat = CommonLogFormat + ` "{>Referer}" "{>User-Agent}"`
 	// DefaultLogFormat is the default log format.
 	DefaultLogFormat = CommonLogFormat
+	// DefaultLogType is the default log type
+	DefaultLogType = "plain"
 )
