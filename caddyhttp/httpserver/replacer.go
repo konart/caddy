@@ -29,9 +29,9 @@ import (
 	"time"
 
 	"encoding/json"
-	"fmt"
 	"github.com/mholt/caddy"
 	"github.com/mholt/caddy/caddytls"
+	"log"
 )
 
 // requestReplacer is a strings.Replacer which is used to
@@ -105,12 +105,15 @@ type RequestWrapper struct {
 }
 
 func (r *ResponseRecorder) MarshalJSON() ([]byte, error) {
+	l := roundDuration(time.Since(r.start)).String()
 	return json.Marshal(&struct {
 		Status int
 		Size   int
+		Latency string
 	}{
 		Status: r.status,
 		Size:   r.size,
+		Latency: l,
 	})
 }
 
@@ -264,11 +267,11 @@ func (r *replacer) MarshalJSON() ([]byte, error) {
 }
 
 func (r *replacer) ToJson() string {
-	str, err := json.Marshal(r)
+	b, err := json.Marshal(r)
 	if err != nil {
-		return fmt.Sprintf("Error while trying to marshall the request: %v\nError: %s\n", r.request, err)
+		log.Printf("[ERROR] Replacer marshaller: %s\n", err)
 	}
-	return string(str)
+	return string(b)
 }
 
 func roundDuration(d time.Duration) time.Duration {
